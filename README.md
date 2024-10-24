@@ -9,19 +9,20 @@ Also often the fish dotfiles can get messed up from me editing/changing plugins 
 
 
 ## supabase
-    - supabase completion is generated with the following:
+
+supabase completion is generated with the following:
 
 ```fish
 > echo -e "# `supabase` completion GENERATED FOR VERSION:\n# $(supabase --version)\n" > completions/supabase.fish && supabase completion fish >> completions/supabase.fish
 ```
 
-    could integrate version with something like (not correct right now though):
+- could integrate version with something like (not correct right now though):
 
-    ```fish
-    function __supabase_completion_check_version
-        if test "$(supabase --version)" = "1.207.9"
-            return 0
-        end
-        return 1
+```fish
+function __supabase_completion_check_version
+    if test "$(supabase --version)" = "1.207.9"
+        return 0
     end
-    ```
+    return 1
+end
+```
