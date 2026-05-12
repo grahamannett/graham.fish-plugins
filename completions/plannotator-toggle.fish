@@ -17,3 +17,7 @@ complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable dis
     -a codex -d "Codex CLI"
 complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
     -a opencode -d "OpenCode"
+complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
+    -a gemini -d "Gemini CLI"
+complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
+    -a pi -d "Pi coding agent"

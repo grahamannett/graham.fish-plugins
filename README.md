@@ -9,17 +9,24 @@ Also often the fish dotfiles can get messed up from me editing/changing plugins 
 
 ## plannotator-toggle
 
-Enable/disable [plannotator](https://plannotator.ai/) across coding agents (Claude Code, Codex, OpenCode) without uninstalling. Plannotator's installer wires hooks into multiple agents but ships no built-in toggle.
+Enable/disable [plannotator](https://plannotator.ai/) across coding agents (Claude Code, Codex, OpenCode, Gemini, and Pi) without uninstalling. Plannotator's installer wires hooks and plugin/package entries into multiple agents but ships no built-in toggle.
 
 ```fish
 plannotator-toggle                    # status
 plannotator-toggle disable            # disable for all installed agents
 plannotator-toggle enable             # re-enable
 plannotator-toggle disable claude-code  # one agent
-plannotator-toggle disable claude-code codex  # explicit list
+plannotator-toggle disable claude-code codex pi  # explicit list
 ```
 
-Mechanics: surgical `jq` edits to `~/.claude/settings.json` (toggles `enabledPlugins["plannotator@plannotator"]`) and `~/.codex/hooks.json` (filters Stop hooks whose command basename is `plannotator`). Removed Codex hook entries are stashed under `~/.plannotator/state/` so re-enable restores the original config exactly. The plannotator binary is never deleted. Requires `jq`.
+Mechanics: surgical `jq` edits to `~/.claude/settings.json` (toggles `enabledPlugins["plannotator@plannotator"]`), `~/.codex/hooks.json` (canonical managed Stop hooks), `~/.config/opencode/opencode.json` (`@plannotator/opencode` plugin entry), `~/.gemini/settings.json` (the `exit_plan_mode` hook), and `~/.pi/agent/settings.json` (canonical Pi package entry). The toggle only manages known installer-shaped entries; custom Plannotator hooks/packages are reported and left untouched. For Pi, enabling plannotator also parks the old auto-discovered local `~/.pi/agent/extensions/plan-mode` directory under `~/.pi/agent/extensions.disabled/` so it does not conflict with Plannotator's own `--plan` flag. The plannotator binary, slash commands, skills, and policies are never deleted. Requires `jq`.
+
+Tests:
+
+```fish
+fisher install jorgebucaran/fishtape
+fishtape tests/*.fish
+```
 
 
 # completions
