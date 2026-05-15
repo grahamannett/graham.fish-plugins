@@ -250,27 +250,65 @@ function __plannotator_toggle_codex_other_count
 end
 
 function __plannotator_toggle_enable_codex_hooks_config
+    # Mirrors the awk in plannotator's install.sh enable_codex_hooks_config.
+    # Codex deprecated the top-level `codex_hooks = true` flag in favour of
+    # `[features] hooks = true`; an older version of this toggle wrote the
+    # deprecated form, so we also strip stray top-level `codex_hooks` lines.
     set -l f "$HOME/.codex/config.toml"
     __plannotator_toggle_ensure_parent "$f"
 
     if not test -f "$f"
-        printf "codex_hooks = true\n" >"$f"
+        printf "[features]\nhooks = true\n" >"$f"
         return 0
     end
 
-    set -l tmp "$f.tmp.$fish_pid"
-    if grep -Eq '^[[:space:]]*codex_hooks[[:space:]]*=' "$f" 2>/dev/null
-        awk '
-          /^[[:space:]]*codex_hooks[[:space:]]*=/ { print "codex_hooks = true"; next }
-          { print }
-        ' "$f" >"$tmp"
-    else
-        begin
-            printf "codex_hooks = true\n"
-            sed -n '1,$p' "$f"
-        end >"$tmp"
+    if grep -Eq '^[[:space:]]*features[[:space:]]*=' "$f" 2>/dev/null
+        echo "plannotator-toggle: $f uses inline 'features = ...'; add '[features]' with 'hooks = true' manually" >&2
+        return 1
     end
 
+    set -l tmp "$f.tmp.$fish_pid"
+    awk '
+      function is_table(line) {
+          return line ~ /^[[:space:]]*\[[^]]+\][[:space:]]*$/
+      }
+      BEGIN { in_features = 0; saw_features = 0; saw_hook = 0 }
+      {
+          if (is_table($0)) {
+              if (in_features && !saw_hook) {
+                  print "hooks = true"
+                  saw_hook = 1
+              }
+              in_features = ($0 ~ /^[[:space:]]*\[features\][[:space:]]*$/)
+              if (in_features) saw_features = 1
+          }
+
+          if (in_features && $0 ~ /^[[:space:]]*(codex_hooks|hooks)[[:space:]]*=/) {
+              print "hooks = true"
+              saw_hook = 1
+              next
+          }
+
+          if (!in_features && $0 ~ /^[[:space:]]*codex_hooks[[:space:]]*=/) {
+              next
+          }
+
+          print
+      }
+      END {
+          if (saw_features && in_features && !saw_hook) {
+              print "hooks = true"
+          } else if (!saw_features) {
+              print ""
+              print "[features]"
+              print "hooks = true"
+          }
+      }
+    ' "$f" >"$tmp" 2>/dev/null
+    or begin
+        echo "plannotator-toggle: failed to rewrite $f; temp left at $tmp" >&2
+        return 1
+    end
     mv "$tmp" "$f"
 end
 

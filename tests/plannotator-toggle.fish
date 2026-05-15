@@ -38,7 +38,7 @@ function __pt_codex_round_trip
 
     mkdir -p "$HOME/.codex"
     printf '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/old/plannotator","timeout":345600},{"type":"command","command":"plannotator","timeout":1,"env":{"A":"B"}},{"type":"command","command":"other","timeout":2}]}]}}\n' >"$HOME/.codex/hooks.json"
-    printf '[features]\nmemories = true\n' >"$HOME/.codex/config.toml"
+    printf 'codex_hooks = true\n\n[features]\nmemories = true\n' >"$HOME/.codex/config.toml"
 
     plannotator-toggle disable codex >/dev/null
     set -l disabled_count (__pt_jq '[.hooks.Stop[]?.hooks[]? | select(.type == "command" and ((.command // "") | split("/") | last == "plannotator") and .timeout == 345600 and ((keys_unsorted - ["type","command","timeout"]) | length == 0))] | length' "$HOME/.codex/hooks.json")
@@ -52,9 +52,16 @@ function __pt_codex_round_trip
     set -l command_is_fixture (string match -q '*/bin/plannotator' "$command_path"; and echo yes; or echo no)
     set -l custom_after_enable (__pt_jq '[.hooks.Stop[]?.hooks[]? | select(((.command // "") | split("/") | last == "plannotator") and .env.A == "B")] | length' "$HOME/.codex/hooks.json")
     set -l other_after_enable (__pt_jq '[.hooks.Stop[]?.hooks[]? | select(.command == "other")] | length' "$HOME/.codex/hooks.json")
-    set -l hooks_config (string match -q '*codex_hooks = true*' (string collect <"$HOME/.codex/config.toml"); and echo yes; or echo no)
+    set -l hooks_under_features yes
+    awk '
+      /^[[:space:]]*\[features\][[:space:]]*$/ { in_f=1; next }
+      /^[[:space:]]*\[[^]]+\][[:space:]]*$/ { in_f=0; next }
+      in_f && /^[[:space:]]*hooks[[:space:]]*=[[:space:]]*true/ { found=1 }
+      END { exit found ? 0 : 1 }
+    ' "$HOME/.codex/config.toml"; or set hooks_under_features no
+    set -l legacy_codex_hooks_present (grep -Eq '^[[:space:]]*codex_hooks[[:space:]]*=' "$HOME/.codex/config.toml"; and echo yes; or echo no)
 
-    echo "$disabled_count $custom_after_disable $other_after_disable $enabled_count $command_is_fixture $custom_after_enable $other_after_enable $hooks_config"
+    echo "$disabled_count $custom_after_disable $other_after_disable $enabled_count $command_is_fixture $custom_after_enable $other_after_enable $hooks_under_features $legacy_codex_hooks_present"
 end
 
 function __pt_opencode_round_trip
@@ -151,7 +158,7 @@ function __pt_pi_custom_package_is_preserved
 end
 
 @test "claude-code toggles plugin flag and preserves other plugin" (__pt_claude_round_trip) = "false true true true"
-@test "codex manages only canonical Stop hook and preserves custom hook" (__pt_codex_round_trip) = "0 1 1 1 yes 1 1 yes"
+@test "codex manages only canonical Stop hook and preserves custom hook" (__pt_codex_round_trip) = "0 1 1 1 yes 1 1 yes no"
 @test "opencode toggles exact plugin entry and preserves adjacent package names" (__pt_opencode_round_trip) = "0 1 1 1 1 1"
 @test "gemini toggles exit_plan_mode hook and preserves unrelated hooks" (__pt_gemini_round_trip) = "0 1 1 1"
 @test "pi parks old plan-mode extension and toggles package entry" (__pt_pi_round_trip) = "1 0 1 no yes 0 yes"
