@@ -79,6 +79,16 @@ function plannotator-toggle --description "Enable/disable plannotator across cod
 
     if test "$verb" = status
         echo
+        if test -d "$HOME/.omp/agent"
+            set -l dim ""
+            set -l reset ""
+            if not set -q NO_COLOR
+                set dim (set_color brblack)
+                set reset (set_color normal)
+            end
+            printf "%snote: oh-my-pi (~/.omp/) detected — not managed by this toggle. See docs/plannotator-toggle.md.%s\n" $dim $reset
+            echo
+        end
         __plannotator_toggle_usage
     end
 

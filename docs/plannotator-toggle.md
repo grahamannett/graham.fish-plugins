@@ -64,6 +64,21 @@ installed assets.
 If the user wants those gone they should re-run the installer or remove
 them manually.
 
+## Out of scope: oh-my-pi (`omp`)
+
+oh-my-pi is a fork of pi-mono, but its config is YAML at
+`~/.omp/agent/config.yml` (no `packages[]`), hooks are dynamically
+imported JS/TS modules via `discoverAndLoadHooks()`, hook events differ
+(`tool_call`, `turn_end`, etc.; no `Stop` / `BeforeTool` /
+`exit_plan_mode`), and discovery is `.omp`-native (no multi-root pickup
+of `~/.claude` / `~/.codex` / `~/.gemini`). Plannotator's installer
+writes nothing for omp and no `@plannotator/omp-extension` exists, so
+there is no installer-canonical shape to match. Adding `oh-my-pi` to
+`known_agents` would mean inventing a Plannotator-for-omp integration —
+see "Anti-patterns" below. `plannotator-toggle status` prints a one-line
+footer when `~/.omp/agent/` exists so the omission is visible. Revisit
+if Plannotator upstream adds omp support.
+
 ## Audit procedure
 
 Run this whenever an agent reports the toggle is enabled but the hook is

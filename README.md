@@ -21,6 +21,8 @@ plannotator-toggle disable claude-code codex pi  # explicit list
 
 Mechanics: surgical `jq` edits to `~/.claude/settings.json` (toggles `enabledPlugins["plannotator@plannotator"]`), `~/.codex/hooks.json` (canonical managed Stop hooks), `~/.config/opencode/opencode.json` (`@plannotator/opencode` plugin entry), `~/.gemini/settings.json` (the `exit_plan_mode` hook), and `~/.pi/agent/settings.json` (canonical Pi package entry). The toggle only manages known installer-shaped entries; custom Plannotator hooks/packages are reported and left untouched. For Pi, enabling plannotator also parks the old auto-discovered local `~/.pi/agent/extensions/plan-mode` directory under `~/.pi/agent/extensions.disabled/` so it does not conflict with Plannotator's own `--plan` flag. The plannotator binary, slash commands, skills, and policies are never deleted. Requires `jq`.
 
+Scope note: the `pi` agent above is the original Pi (`@earendil-works/pi-coding-agent`, settings at `~/.pi/agent/settings.json`). oh-my-pi (`omp`, settings at `~/.omp/agent/`) is a separate fork with a different config layout (YAML, JS/TS hook modules) and no Plannotator integration today — this toggle does not manage it. `plannotator-toggle status` prints a footer when `~/.omp/agent/` is present so the omission is visible.
+
 If Plannotator's installer changes shape and this function stops matching the entries it writes, see [docs/plannotator-toggle.md](docs/plannotator-toggle.md) for the audit-and-repair runbook.
 
 Tests:
