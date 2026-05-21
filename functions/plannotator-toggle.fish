@@ -1,25 +1,11 @@
-# plannotator-toggle: enable/disable plannotator across coding agents.
+# plannotator-toggle: manage plannotator across coding agents.
+# See docs/plannotator-toggle.md for the maintenance runbook.
 #
-# Plannotator (https://plannotator.ai/) installs hooks, plugins, and packages
-# into several coding agents. This function flips the active integration points
-# on/off without uninstalling the binary, slash commands, policies, or skills.
-#
-# Surfaces touched:
-#   claude-code: ~/.claude/settings.json -> enabledPlugins["plannotator@plannotator"]
-#   codex      : ~/.codex/hooks.json Stop hooks + ~/.codex/config.toml codex_hooks
-#   opencode   : ~/.config/opencode/opencode.json -> plugin[]
-#   gemini     : ~/.gemini/settings.json -> hooks.BeforeTool exit_plan_mode hook
-#   pi         : ~/.pi/agent/settings.json packages[] + old local plan-mode extension
-#
-# Usage:
-#   plannotator-toggle                            # status (no args)
-#   plannotator-toggle status [agent ...]
-#   plannotator-toggle enable [agent ...]
-#   plannotator-toggle disable [agent ...]
-#
-# Agents: claude-code, codex, opencode, gemini, pi
+# Env:
+#   PLANNOTATOR_INSTALL_URL          override installer URL (testing).
+#   PLANNOTATOR_TOGGLE_NO_TRASH=1    force rm fallback even when `trash` exists.
 
-function plannotator-toggle --description "Enable/disable plannotator across coding agents"
+function plannotator-toggle --description "Manage plannotator across coding agents"
     set -l known_agents claude-code codex opencode gemini pi
 
     if not command -q jq
@@ -27,23 +13,48 @@ function plannotator-toggle --description "Enable/disable plannotator across cod
         return 1
     end
 
+    set -l yes 0
+    set -l args
+    for a in $argv
+        switch $a
+            case -y --yes
+                set yes 1
+            case '*'
+                set -a args $a
+        end
+    end
+
     set -l verb status
     set -l targets
-    if test (count $argv) -ge 1
-        set verb $argv[1]
-        if test (count $argv) -ge 2
-            set targets $argv[2..-1]
+    if test (count $args) -ge 1
+        set verb $args[1]
+        if test (count $args) -ge 2
+            set targets $args[2..-1]
         end
     end
     if test (count $targets) -eq 0
         set targets $known_agents
     end
 
-    if not contains -- $verb status enable disable
+    if not contains -- $verb status enable disable install uninstall
         echo "plannotator-toggle: unknown verb '$verb'" >&2
         __plannotator_toggle_usage >&2
         return 1
     end
+
+    if contains -- $verb install uninstall
+        if test (count $args) -ge 2
+            echo "plannotator-toggle: '$verb' does not accept agent arguments" >&2
+            return 1
+        end
+        if test "$verb" = install
+            __plannotator_toggle_install $yes
+            return
+        end
+        __plannotator_toggle_uninstall $yes $known_agents
+        return
+    end
+
     for t in $targets
         if not contains -- $t $known_agents
             echo "plannotator-toggle: unknown agent '$t' (valid: $known_agents)" >&2
@@ -97,6 +108,8 @@ end
 
 function __plannotator_toggle_usage
     echo "Usage: plannotator-toggle [status|enable|disable] [claude-code codex opencode gemini pi]"
+    echo "       plannotator-toggle install [-y]      # download + run upstream installer"
+    echo "       plannotator-toggle uninstall [-y]    # disable all + remove file artifacts"
 end
 
 function __plannotator_toggle_ensure_parent
@@ -115,8 +128,6 @@ function __plannotator_toggle_ensure_json_file
     end
 end
 
-# Print one status line. $argv: label, state-keyword, optional-extra-text...
-# state-keyword: enabled | disabled | absent | unknown
 function __plannotator_toggle_print
     set -l label $argv[1]
     set -l state $argv[2]
@@ -483,9 +494,7 @@ function __plannotator_toggle_opencode
                 return 1
             end
             mv "$tmp" "$f"
-            set -l state enabled
-            test "$count" -gt 0; and set state "enabled"
-            __plannotator_toggle_print $label $state "(plugin entry present)"
+            __plannotator_toggle_print $label enabled "(plugin entry present)"
             return 0
     end
 end
@@ -720,4 +729,138 @@ function __plannotator_toggle_pi
             end
             return 0
     end
+end
+
+# ---------------------------------------------------------------------------
+# install / uninstall
+# ---------------------------------------------------------------------------
+
+function __plannotator_toggle_confirm
+    read -P "$argv[1] [y/N] " confirm
+    contains -- "$confirm" y Y yes Yes YES
+end
+
+function __plannotator_toggle_remove
+    if command -q trash; and not set -q PLANNOTATOR_TOGGLE_NO_TRASH
+        trash "$argv[1]"
+    else
+        command rm -rf "$argv[1]"
+    end
+end
+
+function __plannotator_toggle_install
+    set -l yes $argv[1]
+    set -l url $PLANNOTATOR_INSTALL_URL
+    test -z "$url"; and set url https://plannotator.ai/install.sh
+
+    if not command -q curl
+        echo "plannotator-toggle: curl is required" >&2
+        return 1
+    end
+
+    set -l tmp (mktemp -t plannotator-install.XXXXXX.sh 2>/dev/null)
+    if test -z "$tmp"
+        echo "plannotator-toggle: failed to create tempfile" >&2
+        return 1
+    end
+
+    echo "Downloading installer from $url"
+    if not curl -fsSL "$url" -o "$tmp"
+        echo "plannotator-toggle: failed to download installer" >&2
+        command rm -f "$tmp"
+        return 1
+    end
+
+    set -l size (wc -c <"$tmp" | string trim)
+    echo "Downloaded $size bytes to: $tmp"
+
+    if test "$yes" != 1
+        echo "Inspect with: less \"$tmp\""
+        if not __plannotator_toggle_confirm "Run installer now?"
+            echo "Skipped. Tempfile left at: $tmp"
+            return 0
+        end
+    end
+
+    bash "$tmp"
+    set -l rc $status
+    command rm -f "$tmp"
+
+    echo
+    plannotator-toggle status
+    return $rc
+end
+
+function __plannotator_toggle_uninstall
+    set -l yes $argv[1]
+    set -l agents $argv[2..-1]
+
+    echo "Disabling Plannotator across all agents..."
+    echo
+    for t in $agents
+        switch $t
+            case claude-code
+                __plannotator_toggle_claude_code disable
+            case codex
+                __plannotator_toggle_codex disable
+            case opencode
+                __plannotator_toggle_opencode disable
+            case gemini
+                __plannotator_toggle_gemini disable
+            case pi
+                __plannotator_toggle_pi disable
+        end
+    end
+    echo
+
+    set -l found
+    for f in "$HOME/.local/bin/plannotator" \
+             "$HOME/.gemini/policies/plannotator.toml" \
+             "$HOME/.claude/plugins/marketplaces/plannotator"
+        test -e "$f"; and set -a found "$f"
+    end
+
+    for d in "$HOME/.claude/commands" "$HOME/.config/opencode/commands" "$HOME/.gemini/commands"
+        test -d "$d"; or continue
+        for f in (find "$d" -maxdepth 1 -name "plannotator-*" 2>/dev/null)
+            set -a found "$f"
+        end
+    end
+
+    for d in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.agents/skills"
+        test -d "$d"; or continue
+        for f in (find "$d" -maxdepth 1 -type d -name "plannotator-*" 2>/dev/null)
+            set -a found "$f"
+        end
+    end
+
+    if test (count $found) -eq 0
+        echo "No Plannotator artifacts found to remove."
+        return 0
+    end
+
+    echo "The following Plannotator artifacts will be removed:"
+    for f in $found
+        echo "  $f"
+    end
+    echo
+
+    if test "$yes" != 1
+        if not __plannotator_toggle_confirm "Remove these files?"
+            echo "Skipped."
+            return 0
+        end
+    end
+
+    for f in $found
+        __plannotator_toggle_remove "$f"
+    end
+    echo "Removed "(count $found)" artifact(s)."
+
+    if command -q pi
+        echo
+        echo "Note: run 'pi uninstall npm:@plannotator/pi-extension' to also remove the Pi extension package files."
+    end
+
+    return 0
 end

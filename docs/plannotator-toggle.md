@@ -46,12 +46,12 @@ Side effects the toggle also handles for `pi`:
   plan-mode extension conflicts with Plannotator's `--plan` flag.)
 - Strips `+extensions/plan-mode/index.ts` from `extensions[]`.
 
-## Surfaces the installer writes that the toggle does NOT manage
+## Surfaces the installer writes that `disable` does NOT manage
 
-This is a *deliberate* boundary. `disable` is a toggle, not an uninstall,
-so these stay put even when every agent is disabled. Do not "helpfully"
-expand the toggle to manage them — that would silently delete user-
-installed assets.
+This is a *deliberate* boundary for `disable`. `disable` is a toggle, not
+an uninstall, so these stay put even when every agent is disabled. Do not
+"helpfully" expand `disable` to manage them — that would silently delete
+user-installed assets.
 
 - The `plannotator` binary at `~/.local/bin/plannotator`.
 - Slash commands under `~/.claude/commands/`,
@@ -61,8 +61,60 @@ installed assets.
 - Claude Code plugin hooks file
   `~/.claude/plugins/marketplaces/plannotator/apps/hook/hooks/hooks.json`.
 
-If the user wants those gone they should re-run the installer or remove
-them manually.
+`uninstall` *does* remove these — see the next section. Users who want
+only the matchers gone should keep using `disable`; users who want every
+trace gone should use `uninstall`.
+
+## `install` and `uninstall` verbs
+
+`install` is a thin, auditable wrapper around the upstream installer
+(`https://plannotator.ai/install.sh`):
+
+1. `curl -fsSL <url> -o <tempfile>` — download only.
+2. Print the tempfile path and byte size; suggest `less "$tempfile"`.
+3. Prompt `Run installer now? [y/N]` (skipped with `-y` / `--yes`).
+4. On `y`: `bash <tempfile>`, then delete the tempfile, then re-print
+   `status`. On `N`: leave the tempfile on disk for inspection.
+
+The URL can be overridden via `$PLANNOTATOR_INSTALL_URL` (used by tests
+to point at a fixture script). The toggle never pipes the network response
+straight to `bash` — the tempfile step is the audit step that the rest of
+the toggle's discipline relies on.
+
+`uninstall` is the inverse of `install`. It performs two phases:
+
+1. Run `disable` on every known agent (uses the existing surgical jq
+   editors — same code path as `plannotator-toggle disable`).
+2. Enumerate file artifacts created by the installer and remove them
+   after a single confirmation prompt (or `-y`). The artifact list is:
+   - `~/.local/bin/plannotator` (the binary)
+   - `~/.gemini/policies/plannotator.toml` (the Gemini policy)
+   - `~/.claude/plugins/marketplaces/plannotator/` (entire dir)
+   - Anything matching `plannotator-*` under
+     `~/.claude/commands/`, `~/.config/opencode/commands/`,
+     `~/.gemini/commands/` (slash commands).
+   - Anything matching `plannotator-*` under
+     `~/.claude/skills/`, `~/.codex/skills/`, `~/.agents/skills/`
+     (skill directories).
+
+Removal uses `trash` when available so files are recoverable; falls back
+to `rm -rf` if `trash` is not on PATH. `PLANNOTATOR_TOGGLE_NO_TRASH=1`
+forces the `rm` path (used by tests to avoid polluting the macOS Trash
+with tempdir paths).
+
+If `pi` is on PATH, `uninstall` prints a one-line reminder to also run
+`pi uninstall npm:@plannotator/pi-extension` — the toggle does not touch
+the Pi extension's installed package files (that's `pi`'s job; the
+package directory lives outside the surfaces enumerated above).
+
+### Drift maintenance for `uninstall`
+
+If the installer adds a new file artifact (new slash command, new
+policy, new skill), the `uninstall` enumeration in
+`__plannotator_toggle_uninstall` needs to grow to match. The audit
+procedure below already requires re-fetching the installer; when you
+review it, also diff the file-write paths against the artifact list in
+`__plannotator_toggle_uninstall` and the bullet list above.
 
 ## Out of scope: oh-my-pi (`omp`)
 

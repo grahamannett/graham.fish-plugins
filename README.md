@@ -17,9 +17,14 @@ plannotator-toggle disable            # disable for all installed agents
 plannotator-toggle enable             # re-enable
 plannotator-toggle disable claude-code  # one agent
 plannotator-toggle disable claude-code codex pi  # explicit list
+plannotator-toggle install            # download + run upstream installer (with prompt)
+plannotator-toggle install -y         # same, skip confirmation prompt
+plannotator-toggle uninstall          # disable everywhere + remove file artifacts
 ```
 
-Mechanics: surgical `jq` edits to `~/.claude/settings.json` (toggles `enabledPlugins["plannotator@plannotator"]`), `~/.codex/hooks.json` (canonical managed Stop hooks), `~/.config/opencode/opencode.json` (`@plannotator/opencode` plugin entry), `~/.gemini/settings.json` (the `exit_plan_mode` hook), and `~/.pi/agent/settings.json` (canonical Pi package entry). The toggle only manages known installer-shaped entries; custom Plannotator hooks/packages are reported and left untouched. For Pi, enabling plannotator also parks the old auto-discovered local `~/.pi/agent/extensions/plan-mode` directory under `~/.pi/agent/extensions.disabled/` so it does not conflict with Plannotator's own `--plan` flag. The plannotator binary, slash commands, skills, and policies are never deleted. Requires `jq`.
+`install` downloads `https://plannotator.ai/install.sh` to a tempfile so you can `less` it before running, then prompts for confirmation (or pass `-y`) and re-prints status after. Set `PLANNOTATOR_INSTALL_URL` to override the source. `uninstall` first runs `disable` on every agent, then removes the binary, slash commands, skills, Gemini policy, and Claude plugin marketplace directory; uses `trash` if installed, falls back to `rm -rf` (set `PLANNOTATOR_TOGGLE_NO_TRASH=1` to always use `rm`).
+
+Mechanics: surgical `jq` edits to `~/.claude/settings.json` (toggles `enabledPlugins["plannotator@plannotator"]`), `~/.codex/hooks.json` (canonical managed Stop hooks), `~/.config/opencode/opencode.json` (`@plannotator/opencode` plugin entry), `~/.gemini/settings.json` (the `exit_plan_mode` hook), and `~/.pi/agent/settings.json` (canonical Pi package entry). The toggle only manages known installer-shaped entries; custom Plannotator hooks/packages are reported and left untouched. For Pi, enabling plannotator also parks the old auto-discovered local `~/.pi/agent/extensions/plan-mode` directory under `~/.pi/agent/extensions.disabled/` so it does not conflict with Plannotator's own `--plan` flag. `disable` never touches the plannotator binary, slash commands, skills, or policies — `uninstall` is the verb that removes those. Requires `jq`.
 
 Scope note: the `pi` agent above is the original Pi (`@earendil-works/pi-coding-agent`, settings at `~/.pi/agent/settings.json`). oh-my-pi (`omp`, settings at `~/.omp/agent/`) is a separate fork with a different config layout (YAML, JS/TS hook modules) and no Plannotator integration today — this toggle does not manage it. `plannotator-toggle status` prints a footer when `~/.omp/agent/` is present so the omission is visible.
 

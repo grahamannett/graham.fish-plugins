@@ -157,9 +157,79 @@ function __pt_pi_custom_package_is_preserved
     echo "$managed_after_enable $custom_after_enable $old_setting_count $parked_ext_exists $custom_after_disable $restored_ext_exists"
 end
 
+function __pt_install_runs_fetched_script
+    set -l root (__pt_fixture)
+    set -lx HOME "$root"
+    set -lx PATH "$root/bin" $PATH
+
+    set -l fake (mktemp -t fake-plannotator-installer.XXXXXX.sh)
+    printf '#!/bin/bash\ntouch "$HOME/.installer-ran"\n' >"$fake"
+    chmod +x "$fake"
+    set -lx PLANNOTATOR_INSTALL_URL "file://$fake"
+
+    plannotator-toggle install --yes >/dev/null 2>&1
+    set -l ran no
+    test -f "$HOME/.installer-ran"; and set ran yes
+
+    command rm -f "$fake"
+    echo "$ran"
+end
+
+function __pt_uninstall_removes_artifacts
+    set -l root (__pt_fixture)
+    set -lx HOME "$root"
+    set -lx PATH "$root/bin" $PATH
+    set -lx PLANNOTATOR_TOGGLE_NO_TRASH 1
+
+    mkdir -p "$HOME/.local/bin" "$HOME/.claude/commands" \
+        "$HOME/.claude/skills/plannotator-review" \
+        "$HOME/.claude/plugins/marketplaces/plannotator/apps" \
+        "$HOME/.codex/skills/plannotator-last" \
+        "$HOME/.config/opencode/commands" \
+        "$HOME/.gemini/commands" "$HOME/.gemini/policies" \
+        "$HOME/.agents/skills/plannotator-compound"
+    touch "$HOME/.local/bin/plannotator"
+    chmod +x "$HOME/.local/bin/plannotator"
+    touch "$HOME/.claude/commands/plannotator-review.md"
+    touch "$HOME/.claude/commands/keep-me.md"
+    touch "$HOME/.claude/skills/plannotator-review/SKILL.md"
+    touch "$HOME/.codex/skills/plannotator-last/SKILL.md"
+    touch "$HOME/.config/opencode/commands/plannotator-annotate.md"
+    touch "$HOME/.gemini/commands/plannotator-review.toml"
+    touch "$HOME/.gemini/policies/plannotator.toml"
+    touch "$HOME/.agents/skills/plannotator-compound/SKILL.md"
+    touch "$HOME/.claude/plugins/marketplaces/plannotator/apps/marker"
+
+    printf '{"enabledPlugins":{"plannotator@plannotator":true}}\n' >"$HOME/.claude/settings.json"
+
+    plannotator-toggle uninstall --yes >/dev/null 2>&1
+
+    set -l bin_gone no
+    test -e "$HOME/.local/bin/plannotator"; or set bin_gone yes
+    set -l cmd_gone no
+    test -e "$HOME/.claude/commands/plannotator-review.md"; or set cmd_gone yes
+    set -l skill_gone no
+    test -e "$HOME/.claude/skills/plannotator-review"; or set skill_gone yes
+    set -l opencode_cmd_gone no
+    test -e "$HOME/.config/opencode/commands/plannotator-annotate.md"; or set opencode_cmd_gone yes
+    set -l policy_gone no
+    test -e "$HOME/.gemini/policies/plannotator.toml"; or set policy_gone yes
+    set -l marketplace_gone no
+    test -e "$HOME/.claude/plugins/marketplaces/plannotator"; or set marketplace_gone yes
+    set -l shared_skill_gone no
+    test -e "$HOME/.agents/skills/plannotator-compound"; or set shared_skill_gone yes
+    set -l unrelated_kept no
+    test -e "$HOME/.claude/commands/keep-me.md"; and set unrelated_kept yes
+    set -l plugin_disabled (__pt_jq '.enabledPlugins["plannotator@plannotator"]' "$HOME/.claude/settings.json")
+
+    echo "$bin_gone $cmd_gone $skill_gone $opencode_cmd_gone $policy_gone $marketplace_gone $shared_skill_gone $unrelated_kept $plugin_disabled"
+end
+
 @test "claude-code toggles plugin flag and preserves other plugin" (__pt_claude_round_trip) = "false true true true"
 @test "codex manages only canonical Stop hook and preserves custom hook" (__pt_codex_round_trip) = "0 1 1 1 yes 1 1 yes no"
 @test "opencode toggles exact plugin entry and preserves adjacent package names" (__pt_opencode_round_trip) = "0 1 1 1 1 1"
 @test "gemini toggles exit_plan_mode hook and preserves unrelated hooks" (__pt_gemini_round_trip) = "0 1 1 1"
 @test "pi parks old plan-mode extension and toggles package entry" (__pt_pi_round_trip) = "1 0 1 no yes 0 yes"
 @test "pi preserves pinned and custom package entries" (__pt_pi_custom_package_is_preserved) = "0 2 0 yes 2 no"
+@test "install --yes runs the fetched installer" (__pt_install_runs_fetched_script) = "yes"
+@test "uninstall --yes removes artifacts, leaves unrelated files, disables plugin" (__pt_uninstall_removes_artifacts) = "yes yes yes yes yes yes yes yes false"
