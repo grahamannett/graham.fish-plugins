@@ -128,6 +128,12 @@ function __plannotator_toggle_ensure_json_file
     end
 end
 
+function __plannotator_toggle_resolve
+    # Resolve through symlinks so atomic writes land on the
+    # real file (e.g. a dotfiles target), not the link itself.
+    path resolve $argv[1]
+end
+
 function __plannotator_toggle_print
     set -l label $argv[1]
     set -l state $argv[2]
@@ -228,9 +234,10 @@ function __plannotator_toggle_claude_code
                 return 0
             end
 
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             if jq --argjson t $target '.enabledPlugins["plannotator@plannotator"] = $t' "$f" >"$tmp" 2>/dev/null
-                mv "$tmp" "$f"
+                mv "$tmp" "$dst"
                 __plannotator_toggle_print $label $target_state "(takes effect on next Claude Code launch)"
                 return 0
             end
@@ -288,7 +295,8 @@ function __plannotator_toggle_enable_codex_hooks_config
         return 1
     end
 
-    set -l tmp "$f.tmp.$fish_pid"
+    set -l dst (__plannotator_toggle_resolve "$f")
+    set -l tmp "$dst.tmp.$fish_pid"
     awk '
       function is_table(line) {
           return line ~ /^[[:space:]]*\[[^]]+\][[:space:]]*$/
@@ -330,7 +338,7 @@ function __plannotator_toggle_enable_codex_hooks_config
         echo "plannotator-toggle: failed to rewrite $f; temp left at $tmp" >&2
         return 1
     end
-    mv "$tmp" "$f"
+    mv "$tmp" "$dst"
 end
 
 function __plannotator_toggle_codex
@@ -375,7 +383,8 @@ function __plannotator_toggle_codex
                 return 0
             end
 
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             jq '
               def is_managed_plannotator:
                 .type == "command"
@@ -392,7 +401,7 @@ function __plannotator_toggle_codex
                 __plannotator_toggle_print $label unknown "(failed to rewrite $f; temp left at $tmp)"
                 return 1
             end
-            mv "$tmp" "$f"
+            mv "$tmp" "$dst"
             __plannotator_toggle_print $label disabled "(removed $managed_count managed Stop hook(s))" $warn $custom_warn
             return 0
 
@@ -404,7 +413,8 @@ function __plannotator_toggle_codex
             end
 
             __plannotator_toggle_ensure_json_file "$f"
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             jq --arg b "$bin" '
               def is_managed_plannotator:
                 .type == "command"
@@ -421,7 +431,7 @@ function __plannotator_toggle_codex
                 __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                 return 1
             end
-            mv "$tmp" "$f"
+            mv "$tmp" "$dst"
             __plannotator_toggle_enable_codex_hooks_config
 
             if test "$managed_count" -gt 0
@@ -464,7 +474,8 @@ function __plannotator_toggle_opencode
                 return 0
             end
 
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             jq '
               if (.plugin | type) == "array" then
                 .plugin |= map(select(test("^@plannotator/opencode(@.+)?$"; "i") | not))
@@ -476,13 +487,14 @@ function __plannotator_toggle_opencode
                 __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                 return 1
             end
-            mv "$tmp" "$f"
+            mv "$tmp" "$dst"
             __plannotator_toggle_print $label disabled
             return 0
 
         case enable
             __plannotator_toggle_ensure_json_file "$f"
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             jq '
               .plugin = (if (.plugin | type) == "array" then .plugin elif (.plugin | type) == "string" then [.plugin] else [] end)
               | if ([.plugin[]? | select(test("^@plannotator/opencode(@.+)?$"; "i"))] | length) == 0 then
@@ -493,7 +505,7 @@ function __plannotator_toggle_opencode
                 __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                 return 1
             end
-            mv "$tmp" "$f"
+            mv "$tmp" "$dst"
             __plannotator_toggle_print $label enabled "(plugin entry present)"
             return 0
     end
@@ -530,7 +542,8 @@ function __plannotator_toggle_gemini
                 return 0
             end
 
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             jq '
               if .hooks.BeforeTool then
                 .hooks.BeforeTool |= map(
@@ -547,13 +560,14 @@ function __plannotator_toggle_gemini
                 __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                 return 1
             end
-            mv "$tmp" "$f"
+            mv "$tmp" "$dst"
             __plannotator_toggle_print $label disabled
             return 0
 
         case enable
             __plannotator_toggle_ensure_json_file "$f" '{"experimental":{"plan":true}}'
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             jq '
               .hooks //= {}
               | .hooks.BeforeTool //= []
@@ -565,7 +579,7 @@ function __plannotator_toggle_gemini
                 __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                 return 1
             end
-            mv "$tmp" "$f"
+            mv "$tmp" "$dst"
             __plannotator_toggle_print $label enabled "(BeforeTool hook present)"
             return 0
     end
@@ -649,7 +663,8 @@ function __plannotator_toggle_pi
             end
 
             __plannotator_toggle_ensure_json_file "$f"
-            set -l tmp "$f.tmp.$fish_pid"
+            set -l dst (__plannotator_toggle_resolve "$f")
+            set -l tmp "$dst.tmp.$fish_pid"
             if test "$custom_count" -gt 0; and test "$managed_count" -eq 0
                 jq '
                   .extensions = ((.extensions // []) | map(select(. != "+extensions/plan-mode/index.ts")))
@@ -658,7 +673,7 @@ function __plannotator_toggle_pi
                     __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                     return 1
                 end
-                mv "$tmp" "$f"
+                mv "$tmp" "$dst"
                 __plannotator_toggle_print $label unknown "(custom Plannotator package present; not adding managed package)"
                 return 0
             end
@@ -681,7 +696,7 @@ function __plannotator_toggle_pi
                 __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                 return 1
             end
-            mv "$tmp" "$f"
+            mv "$tmp" "$dst"
             __plannotator_toggle_print $label enabled "(plannotator package active; old plan-mode parked if present)"
             return 0
 
@@ -692,7 +707,8 @@ function __plannotator_toggle_pi
                     return 0
                 end
             else
-                set -l tmp "$f.tmp.$fish_pid"
+                set -l dst (__plannotator_toggle_resolve "$f")
+                set -l tmp "$dst.tmp.$fish_pid"
                 jq '
                   def is_managed_plannotator:
                     if type == "string" then
@@ -710,7 +726,7 @@ function __plannotator_toggle_pi
                     __plannotator_toggle_print $label unknown "(failed to write $f; temp left at $tmp)"
                     return 1
                 end
-                mv "$tmp" "$f"
+                mv "$tmp" "$dst"
             end
 
             if test "$custom_count" -eq 0; and test -e "$disabled_ext"

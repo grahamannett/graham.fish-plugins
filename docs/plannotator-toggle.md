@@ -38,6 +38,14 @@ mutations are easy to read line by line.
 | gemini | `~/.gemini/settings.json` | `hooks.BeforeTool[]` element | `matcher=exit_plan_mode` and inner hook with `basename(command)=plannotator` |
 | pi | `~/.pi/agent/settings.json` | `packages[]` element | `source` is `npm:@plannotator/pi-extension` (with or without `npm:` prefix), `skills:[]`, no other keys |
 
+All managed paths above are resolved through fish's `path resolve` builtin
+before any atomic write, so users who symlink these files into a dotfiles
+repo will see the dotfile target modified and the symlink at the managed
+path preserved. Reads still go through the symlink path directly.
+Direct-write boot-strap sites (`printf … > "$f"` for an absent initial file)
+rely on shell redirection following symlinks; they do not need explicit
+resolution.
+
 Side effects the toggle also handles for `pi`:
 
 - Parks `~/.pi/agent/extensions/plan-mode` to
@@ -55,7 +63,7 @@ user-installed assets.
 
 - The `plannotator` binary at `~/.local/bin/plannotator`.
 - Slash commands under `~/.claude/commands/`,
-  `~/.config/opencode/command/`, `~/.gemini/commands/`.
+  `~/.config/opencode/commands/`, `~/.gemini/commands/`.
 - Skills under `~/.claude/skills/`, `~/.codex/skills/`, `~/.agents/skills/`.
 - Gemini policy file `~/.gemini/policies/plannotator.toml`.
 - Claude Code plugin hooks file
@@ -305,8 +313,11 @@ to manage it:
    *narrow* — match exact key sets, exact timeouts, exact basenames — so
    user-customised entries are reported (`unknown` / `custom_count > 0`)
    and never overwritten.
-4. Always write to `"$f.tmp.$fish_pid"` and `mv` only on jq success. Do
-   not edit the live file in place.
+4. Always resolve the destination first
+   (`set -l dst (__plannotator_toggle_resolve "$f")`), write to
+   `"$dst.tmp.$fish_pid"`, and `mv "$tmp" "$dst"` only on jq success.
+   Reading via `$f` is fine — only the writer side must use `$dst`. Do not
+   edit the live file in place.
 5. Use `__plannotator_toggle_ensure_parent` and
    `__plannotator_toggle_ensure_json_file` for parent-dir + initial-file
    creation.
@@ -327,9 +338,14 @@ to manage it:
 - **Do not delete files outside the managed config files.** `disable` is
   a toggle, not an uninstall. The binary, slash commands, skills, and
   policy file stay put.
-- **Do not edit settings files in place.** Always go through
-  `"$f.tmp.$fish_pid"` + `mv` on jq success. A failed jq run must leave
-  the live file untouched.
+- **Do not edit settings files in place.** Always resolve the destination
+  through `__plannotator_toggle_resolve` first, then go through
+  `"$dst.tmp.$fish_pid"` + `mv "$tmp" "$dst"` on jq success. Resolving is
+  what keeps managed paths that are user symlinks (e.g.
+  `~/.codex/config.toml -> ~/dotfiles/codex/config.toml`) intact — without
+  it, `mv` replaces the symlink itself with a regular file and orphans the
+  dotfile target. A failed jq run must leave the live file (and any
+  symlink at it) untouched.
 - **Do not call `mkdir`/`mv` ad-hoc.** Use the
   `__plannotator_toggle_ensure_*` helpers so behaviour stays consistent.
 - **Do not drop the bare-vs-absolute `plannotator` command leniency.**

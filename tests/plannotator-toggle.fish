@@ -225,7 +225,32 @@ function __pt_uninstall_removes_artifacts
     echo "$bin_gone $cmd_gone $skill_gone $opencode_cmd_gone $policy_gone $marketplace_gone $shared_skill_gone $unrelated_kept $plugin_disabled"
 end
 
+function __pt_claude_symlink_round_trip
+    set -l root (__pt_fixture)
+    set -lx HOME "$root"
+    set -lx PATH "$root/bin" $PATH
+
+    mkdir -p "$HOME/dotfiles/claude" "$HOME/.claude"
+    printf '{"enabledPlugins":{"plannotator@plannotator":true,"other":true}}\n' \
+        >"$HOME/dotfiles/claude/settings.json"
+    ln -s "$HOME/dotfiles/claude/settings.json" "$HOME/.claude/settings.json"
+
+    plannotator-toggle disable claude-code >/dev/null
+    plannotator-toggle enable claude-code  >/dev/null
+    plannotator-toggle disable claude-code >/dev/null
+
+    set -l is_symlink no
+    test -L "$HOME/.claude/settings.json"; and set is_symlink yes
+    set -l link_value (__pt_jq '.enabledPlugins["plannotator@plannotator"]' "$HOME/.claude/settings.json")
+    set -l dotfile_value (__pt_jq '.enabledPlugins["plannotator@plannotator"]' "$HOME/dotfiles/claude/settings.json")
+    set -l same_inode no
+    test (stat -L -f %i "$HOME/.claude/settings.json") = (stat -L -f %i "$HOME/dotfiles/claude/settings.json"); and set same_inode yes
+
+    echo "$is_symlink $link_value $dotfile_value $same_inode"
+end
+
 @test "claude-code toggles plugin flag and preserves other plugin" (__pt_claude_round_trip) = "false true true true"
+@test "claude-code preserves symlink and writes through to dotfile target" (__pt_claude_symlink_round_trip) = "yes false false yes"
 @test "codex manages only canonical Stop hook and preserves custom hook" (__pt_codex_round_trip) = "0 1 1 1 yes 1 1 yes no"
 @test "opencode toggles exact plugin entry and preserves adjacent package names" (__pt_opencode_round_trip) = "0 1 1 1 1 1"
 @test "gemini toggles exit_plan_mode hook and preserves unrelated hooks" (__pt_gemini_round_trip) = "0 1 1 1"
