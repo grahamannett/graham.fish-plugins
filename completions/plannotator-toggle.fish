@@ -35,3 +35,6 @@ complete -c plannotator-toggle \
 # -y/--yes flag for install/uninstall to skip confirmation prompt.
 complete -c plannotator-toggle -n "__fish_seen_subcommand_from install uninstall" \
     -s y -l yes -d "Skip confirmation prompt"
+
+# -h/--help anywhere.
+complete -c plannotator-toggle -s h -l help -d "Show usage"

@@ -55,6 +55,20 @@ function __pt_claude_alias_round_trip
     echo "$disabled $enabled $other $dedupe_lines $unknown_rc"
 end
 
+function __pt_help_flag
+    set -l usage_lines (plannotator-toggle --help | string match -r '^Usage' | count)
+    plannotator-toggle --help >/dev/null
+    set -l rc_flag $status
+    plannotator-toggle help >/dev/null
+    set -l rc_word $status
+    plannotator-toggle -h >/dev/null
+    set -l rc_short $status
+    plannotator-toggle bogus-verb 2>/dev/null
+    set -l rc_bad $status
+
+    echo "$usage_lines $rc_flag $rc_word $rc_short $rc_bad"
+end
+
 function __pt_codex_round_trip
     set -l root (__pt_fixture)
     set -lx HOME "$root"
@@ -294,6 +308,7 @@ end
 
 @test "claude-code toggles plugin flag and preserves other plugin" (__pt_claude_round_trip) = "false true true true"
 @test "claude alias targets claude-code, dedupes with canonical, rejects unknowns" (__pt_claude_alias_round_trip) = "false true true 1 1"
+@test "--help, -h, and help print usage and exit 0; unknown verb still fails" (__pt_help_flag) = "1 0 0 0 1"
 @test "claude-code preserves symlink and writes through to dotfile target" (__pt_claude_symlink_round_trip) = "yes false false yes"
 @test "codex manages only canonical Stop hook and preserves custom hook" (__pt_codex_round_trip) = "0 1 1 1 yes 1 1 yes no"
 @test "opencode toggles exact plugin entry and preserves adjacent package names" (__pt_opencode_round_trip) = "0 1 1 1 1 1"

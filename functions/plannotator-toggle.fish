@@ -19,6 +19,9 @@ function plannotator-toggle --description "Manage plannotator across coding agen
         switch $a
             case -y --yes
                 set yes 1
+            case -h --help help
+                __plannotator_toggle_usage
+                return 0
             case '*'
                 set -a args $a
         end
@@ -118,6 +121,7 @@ function __plannotator_toggle_usage
     echo "Usage: plannotator-toggle [status|enable|disable] [claude-code codex opencode gemini pi]"
     echo "       plannotator-toggle install [-y]      # download + run upstream installer"
     echo "       plannotator-toggle uninstall [-y]    # disable all + remove file artifacts"
+    echo "       'claude' is accepted as an alias for claude-code"
 end
 
 function __plannotator_toggle_ensure_parent
