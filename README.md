@@ -37,9 +37,34 @@ fisher install jorgebucaran/fishtape
 fishtape tests/*.fish
 ```
 
+## imgx
+
+View images in the terminal. In kitty-graphics-protocol terminals (Ghostty, kitty, WezTerm — detected via `$TERM_PROGRAM`/`$TERM`) it uses `kitten icat`, the protocol's reference implementation (pixel-perfect, cell-fitted placement). Everywhere else it uses `chafa`, which probes the terminal and picks the best protocol it speaks (iTerm2, kitty, sixels) and degrades to character art over ssh/tmux/pipes. `kitten icat` / `kitty +kitten icat` are last resorts when chafa is missing.
+
+```fish
+imgx photo.png            # one or more images
+imgx --scale max photo.png  # extra args pass through to the chosen backend
+```
+
+The function `--wraps` both `kitten icat` and `chafa`, so it offers flag completions from both. Flags pass through verbatim to whichever backend wins, so backend-specific flags only work where that backend runs.
+
 
 # completions
 
+
+## chafa
+
+Hand-written in `completions/chafa.fish` from `chafa --help` (chafa 1.18.2) — chafa ships no fish completions upstream. Regenerate by hand if a new chafa release adds flags.
+
+## kitty / kitten
+
+`completions/kitty.fish` and `completions/kitten.fish` are kitty's official dynamic completion stub:
+
+```fish
+command -q kitten; and kitten __complete__ setup fish | source
+```
+
+It defines completions for `kitty`, `kitten`, and `clone-in-kitty` at completion time, so they track the installed kitty version automatically. `imgx`'s `--wraps='kitten icat'` picks these up.
 
 ## supabase
 

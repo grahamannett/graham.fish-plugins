@@ -1,4 +1,4 @@
-function gcm
+function gcm --wraps='git commit'
     # from - https://gist.github.com/knyazer/675e6eb945ae5ec64af2f9be4826b07e
     # which is based on: https://gist.github.com/karpathy/1dd0294ef9567971c1e4348a90d69285
     # Check if llm is installed, if not, install it

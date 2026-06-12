@@ -249,6 +249,25 @@ function __pt_claude_symlink_round_trip
     echo "$is_symlink $link_value $dotfile_value $same_inode"
 end
 
+function __pt_completion_dedupes_agents
+    # Block autoloading of any installed copy so only the repo file is tested.
+    set -l saved_path $fish_complete_path
+    set fish_complete_path
+    complete -c plannotator-toggle -e
+    source completions/plannotator-toggle.fish
+
+    set -l all (complete -C"plannotator-toggle enable " | string replace -r '\t.*' '')
+    set -l after_pi (complete -C"plannotator-toggle enable pi " | string replace -r '\t.*' '')
+
+    set -l pi_gone no
+    contains -- pi $after_pi; or set pi_gone yes
+    set -l codex_kept no
+    contains -- codex $after_pi; and set codex_kept yes
+
+    set fish_complete_path $saved_path
+    echo (count $all)" "(count $after_pi)" $pi_gone $codex_kept"
+end
+
 @test "claude-code toggles plugin flag and preserves other plugin" (__pt_claude_round_trip) = "false true true true"
 @test "claude-code preserves symlink and writes through to dotfile target" (__pt_claude_symlink_round_trip) = "yes false false yes"
 @test "codex manages only canonical Stop hook and preserves custom hook" (__pt_codex_round_trip) = "0 1 1 1 yes 1 1 yes no"
@@ -258,3 +277,4 @@ end
 @test "pi preserves pinned and custom package entries" (__pt_pi_custom_package_is_preserved) = "0 2 0 yes 2 no"
 @test "install --yes runs the fetched installer" (__pt_install_runs_fetched_script) = "yes"
 @test "uninstall --yes removes artifacts, leaves unrelated files, disables plugin" (__pt_uninstall_removes_artifacts) = "yes yes yes yes yes yes yes yes false"
+@test "completions stop suggesting agents already on the line" (__pt_completion_dedupes_agents) = "5 4 yes yes"

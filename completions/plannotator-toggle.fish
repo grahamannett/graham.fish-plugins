@@ -14,16 +14,22 @@ complete -c plannotator-toggle -n "not __fish_seen_subcommand_from status enable
 complete -c plannotator-toggle -n "not __fish_seen_subcommand_from status enable disable install uninstall" \
     -a uninstall -d "Disable everywhere and remove binary, skills, commands, policies"
 
-# Subsequent positionals: agent names. Allow repetition (status/enable/disable only).
-complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
+# Subsequent positionals: agent names (status/enable/disable only).
+# Each agent is only suggested while it is not already on the command line.
+complete -c plannotator-toggle \
+    -n "__fish_seen_subcommand_from status enable disable; and not __fish_seen_subcommand_from claude-code" \
     -a claude-code -d "Claude Code"
-complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
+complete -c plannotator-toggle \
+    -n "__fish_seen_subcommand_from status enable disable; and not __fish_seen_subcommand_from codex" \
     -a codex -d "Codex CLI"
-complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
+complete -c plannotator-toggle \
+    -n "__fish_seen_subcommand_from status enable disable; and not __fish_seen_subcommand_from opencode" \
     -a opencode -d "OpenCode"
-complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
+complete -c plannotator-toggle \
+    -n "__fish_seen_subcommand_from status enable disable; and not __fish_seen_subcommand_from gemini" \
     -a gemini -d "Gemini CLI"
-complete -c plannotator-toggle -n "__fish_seen_subcommand_from status enable disable" \
+complete -c plannotator-toggle \
+    -n "__fish_seen_subcommand_from status enable disable; and not __fish_seen_subcommand_from pi" \
     -a pi -d "Pi coding agent"
 
 # -y/--yes flag for install/uninstall to skip confirmation prompt.
