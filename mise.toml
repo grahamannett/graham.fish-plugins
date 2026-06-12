@@ -1,0 +1,49 @@
+# Decomposed release flow. Each rel:* step is independently runnable and
+# re-derives its input as "the highest local v-tag" — there is no state passed
+# between tasks. `mise run rel` chains the whole flow (patch bump only; for an
+# explicit version run the steps yourself: rel:tag v0.4.0, rel:push, rel:install).
+
+[tasks."rel:guard"]
+    description = "Refuse to release from a dirty tree, non-main branch, or unpushed HEAD"
+    run = [
+        'test -z "$(git status --porcelain)" || { echo "rel: working tree is dirty" >&2; exit 1; }',
+        'test "$(git branch --show-current)" = main || { echo "rel: not on main" >&2; exit 1; }',
+        'git fetch -q origin main && test -z "$(git rev-list origin/main..HEAD)" || { echo "rel: HEAD not pushed to origin/main" >&2; exit 1; }',
+    ]
+
+[tasks."rel:tag"]
+    description = "Create the next annotated patch tag, or an explicit one: rel:tag v0.4.0"
+    depends = ["rel:guard"]
+    usage = 'arg "[version]" default=""'
+    run = '''
+next="${usage_version:-}"
+test -n "$next" || next=$(git tag -l 'v*' | sort -V | tail -1 | awk -F. -v OFS=. '{$NF+=1; print}')
+git tag -a "$next" -m "$next" && echo "rel: tagged $next"
+'''
+
+[tasks."rel:push"]
+    description = "Push the highest local v-tag to origin"
+    depends = ["rel:guard"]
+    wait_for = ["rel:tag"]
+    run = '''
+tag=$(git tag -l 'v*' | sort -V | tail -1)
+git push origin "$tag" && echo "rel: pushed $tag"
+'''
+
+[tasks."rel:install"]
+    description = "Fisher-reinstall the plugin pinned to the highest local v-tag"
+    wait_for = ["rel:push"]
+    shell = "fish -c"
+    run = '''
+set plugin grahamannett/graham.fish-plugins
+set spec $plugin@(git tag -l 'v*' | sort -V | tail -n1)
+for old in (string match -r "^$plugin\S*" <$__fish_config_dir/fish_plugins)
+    test "$old" != "$spec"; and fisher remove $old
+end
+fisher install $spec
+echo "rel: installed $spec — sync ~/dotfiles/fish if you mirror fish_plugins"
+'''
+
+[tasks.rel]
+    description = "Full release: guard, next patch tag, push, fisher reinstall"
+    depends     = ["rel:tag", "rel:push", "rel:install"]

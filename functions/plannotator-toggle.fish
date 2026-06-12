@@ -55,6 +55,14 @@ function plannotator-toggle --description "Manage plannotator across coding agen
         return
     end
 
+    # Normalize aliases (claude -> claude-code) and dedupe targets.
+    set -l normalized
+    for t in $targets
+        test "$t" = claude; and set t claude-code
+        contains -- $t $normalized; or set -a normalized $t
+    end
+    set targets $normalized
+
     for t in $targets
         if not contains -- $t $known_agents
             echo "plannotator-toggle: unknown agent '$t' (valid: $known_agents)" >&2

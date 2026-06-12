@@ -17,6 +17,7 @@ plannotator-toggle disable            # disable for all installed agents
 plannotator-toggle enable             # re-enable
 plannotator-toggle disable claude-code  # one agent
 plannotator-toggle disable claude-code codex pi  # explicit list
+plannotator-toggle enable claude        # 'claude' is an alias for claude-code
 plannotator-toggle install            # download + run upstream installer (with prompt)
 plannotator-toggle install -y         # same, skip confirmation prompt
 plannotator-toggle uninstall          # disable everywhere + remove file artifacts

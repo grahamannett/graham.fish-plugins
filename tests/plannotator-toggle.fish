@@ -31,6 +31,30 @@ function __pt_claude_round_trip
     echo "$disabled $enabled $other_disabled $other_enabled"
 end
 
+function __pt_claude_alias_round_trip
+    set -l root (__pt_fixture)
+    set -lx HOME "$root"
+    set -lx PATH "$root/bin" $PATH
+
+    mkdir -p "$HOME/.claude"
+    printf '{"enabledPlugins":{"plannotator@plannotator":true,"other":true}}\n' >"$HOME/.claude/settings.json"
+
+    plannotator-toggle disable claude >/dev/null
+    set -l disabled (__pt_jq '.enabledPlugins["plannotator@plannotator"]' "$HOME/.claude/settings.json")
+
+    plannotator-toggle enable claude >/dev/null
+    set -l enabled (__pt_jq '.enabledPlugins["plannotator@plannotator"]' "$HOME/.claude/settings.json")
+    set -l other (__pt_jq '.enabledPlugins.other' "$HOME/.claude/settings.json")
+
+    # both alias and canonical name on one line must not double-run the handler
+    set -l dedupe_lines (plannotator-toggle disable claude claude-code | string match -e 'claude-code' | count)
+
+    plannotator-toggle enable banana 2>/dev/null
+    set -l unknown_rc $status
+
+    echo "$disabled $enabled $other $dedupe_lines $unknown_rc"
+end
+
 function __pt_codex_round_trip
     set -l root (__pt_fixture)
     set -lx HOME "$root"
@@ -269,6 +293,7 @@ function __pt_completion_dedupes_agents
 end
 
 @test "claude-code toggles plugin flag and preserves other plugin" (__pt_claude_round_trip) = "false true true true"
+@test "claude alias targets claude-code, dedupes with canonical, rejects unknowns" (__pt_claude_alias_round_trip) = "false true true 1 1"
 @test "claude-code preserves symlink and writes through to dotfile target" (__pt_claude_symlink_round_trip) = "yes false false yes"
 @test "codex manages only canonical Stop hook and preserves custom hook" (__pt_codex_round_trip) = "0 1 1 1 yes 1 1 yes no"
 @test "opencode toggles exact plugin entry and preserves adjacent package names" (__pt_opencode_round_trip) = "0 1 1 1 1 1"
